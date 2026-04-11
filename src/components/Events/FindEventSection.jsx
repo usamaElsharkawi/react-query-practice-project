@@ -13,6 +13,7 @@ export default function FindEventSection() {
     queryKey: ["events", { search: searchterm }],
     queryFn: ({signal}) => fetchEvents({signal, searchTerm: searchterm}),
     enabled: searchterm !== undefined,
+    staleTime: 10000,
   });
 
   function handleSubmit(event) {

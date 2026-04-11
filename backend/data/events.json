@@ -34,5 +34,14 @@
     "time": "18:30",
     "location": "Learning Labs, Austin, TX",
     "image": "laptop-on-desk.jpg"
+  },
+  {
+    "id": "8417",
+    "title": "Tech meeup",
+    "description": "Meet awesome people",
+    "date": "2026-04-28",
+    "time": "09:49",
+    "location": "Cairo",
+    "image": "park.jpg"
   }
 ]
