@@ -219,6 +219,55 @@ The hook that connects the React component world to TanStack Query's internal wo
 - **State Machine** → `Query.state.status` / `fetchStatus`.
 - **Singleton** → One `QueryClient` shared via Context.
 
+### 9. Dependency Inversion Principle (SOLID) and `queryFn`
+
+TanStack Query relies heavily on the **Dependency Inversion Principle (the 'D' in SOLID)**.
+It asks you for one simple contract: **"Give me a function that returns a Promise."**
+
+It doesn't care if you use `fetch`, `axios`, `GraphQL`, or a local `IndexedDB`. By programming to this interface (a Promise), TanStack Query decouples its complex caching/state machine logic from your low-level transport/network logic. 
+
+**JS Internals:** Any function declared with the `async` keyword automatically wraps its return value in a `Promise`. That's why your `async function fetchEvents()` satisfies the contract perfectly.
+
+---
+
+### 10. `QueryFunctionContext` and Native Fetch Cancellation
+
+TanStack Query silently passes an object, the `QueryFunctionContext`, to every `queryFn` execution.
+It contains: `{ queryKey, signal, meta }` and more.
+
+The most important property here is `signal` (an `AbortSignal` instance):
+1. **The Wiring**: You pass this `signal` directly into the native `fetch` API: `fetch(url, { signal })`.
+2. **The Execution**: If a component unmounts quickly, or if a user types rapidly triggering a **Race Condition**, React Query internally triggers `.abort()` on its controller.
+3. **The Result**: The browser's native networking engine sees the red signal and **violently terminates the TCP connection** immediately, saving user bandwidth. The `fetch` promise rejects with an `AbortError`, which React Query catches and silently swallows.
+
+---
+
+### 11. `staleTime` vs `gcTime`
+
+These two configuration properties control completely different aspects of data lifecycle:
+
+| Property | Default | Question it Answers | Result |
+| :--- | :--- | :--- | :--- |
+| **`staleTime`** | `0` | "Is the data fresh enough to trust?" | Controls if a background **refetch** triggers when components mount or window focuses. |
+| **`gcTime`** | `5 mins`| "Should we keep this data in memory?" | Controls when an unused Query is **completely deleted** from the cache to prevent memory leaks. |
+
+**Important Note:** `staleTime` does **NOT** decide if data is shown to the user. Stale data is still shown instantly from the cache, providing a seamless UX, while the verification fetch happens silently in the background (Stale-While-Revalidate).
+
+---
+
+### 12. `isPending` vs `isLoading` (and `enabled`)
+
+React Query v5 clearly separated these states to align with literal English definitions:
+
+*   **`isPending`**: "I have no data yet." (Whether I'm fetching it right now, or the query is paused/disabled).
+*   **`isLoading`**: "I have no data yet **AND** a network request is happening *right now* to get it." (`isPending && isFetching`).
+
+When a query is explicitly paused using the `enabled: false` property (e.g., waiting for user search input):
+*   `isPending = true`
+*   `isLoading = false`
+
+You should use `isLoading` to trigger your initial loading spinners to avoid infinite spinners when a query is intentionally paused.
+
 ---
 
 ## 🏗️ Key Refactoring: `useEffect` → `useQuery`
