@@ -8,9 +8,11 @@ import EventItem from "./EventItem";
 export default function FindEventSection() {
   const searchElement = useRef();
   const [searchterm, setSearchTerm] = useState();
+  
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["events", { search: searchterm }],
     queryFn: ({signal}) => fetchEvents({signal, searchTerm: searchterm}),
+    enabled: searchterm !== undefined,
   });
 
   function handleSubmit(event) {
