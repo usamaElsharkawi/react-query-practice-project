@@ -268,6 +268,46 @@ When a query is explicitly paused using the `enabled: false` property (e.g., wai
 
 You should use `isLoading` to trigger your initial loading spinners to avoid infinite spinners when a query is intentionally paused.
 
+### 13. Declarative Queries vs Imperative Mutations
+
+The two main hooks in TanStack Query serve fundamentally different purposes:
+
+*   **`useQuery` (Declarative):** For **READING** data (`GET`). You just declare it, and it fires automatically when the component mounts. It handles caching, deduplication, and background sync.
+*   **`useMutation` (Imperative):** For **CHANGING** data (`POST`, `PUT`, `DELETE`). It does *nothing* on mount. It gives you a `mutate` function that you trigger manually (e.g., when a user clicks a button). It does not cache the result.
+
+---
+
+### 14. Architecture: Lifting State Up & `FormData`
+
+Building "Dumb" form components using native DOM APIs is a superior pattern to creating 10 different `useState` hooks for 10 different inputs.
+
+1.  **Uncontrolled Inputs**: Let the HTML `<input>` manage its own text.
+2.  **Native `onSubmit`**: Attach a handler to the `<form>` itself.
+3.  **The Extraction**: Use `new FormData(event.target)` and `Object.fromEntries()` to instantly convert the entire form into a clean JavaScript object.
+4.  **Lifting State Up**: Pass that object upward via a custom `onSubmit` prop to the parent component, so the parent can call the `mutate` function. This keeps network logic decoupled from UI logic.
+
+---
+
+### 15. The UX Redirect Mental Model
+
+After a successful mutation, where should you redirect the user? Apply this mental model:
+
+1.  **Delete (The Destruction Rule)**: If you destroy the page the user is standing on (`/events/123`), you **must** redirect them back to a safe parent list (`/events`).
+2.  **Create (The Generation Rule)**: Redirect to the list view OR the details view of the newly created item.
+3.  **Modals (The Context Rule)**: Send them back to the exact layout they were looking at before the modal opened.
+4.  **Edit (The Flow Rule)**: Stay on the Edit page (with a "Saved" toast) or redirect to the item's Details page. Do not force them entirely back to the home page if they might need to make more tweaks.
+
+---
+
+### 16. The `refetchType: "none"` Gotcha (React Lifecycle)
+
+When you invalidate a query (e.g., after creating an event), TanStack Query immediately fires a background refetch. If you are navigating away immediately, this can cause an unnecessary double-fetch.
+Adding `refetchType: "none"` tells the cache: *"Mark this as stale, but DO NOT fetch it right now."*
+
+**The Senior Lifecycle Gotcha:**
+*   If you invalidate with `"none"`, and the target page was **already mounted in the background** (like a page sitting behind a Modal), it will **NOT** refetch automatically, leaving the user with stale data until they focus the window!
+*   If the target page was **unmounted** (like entirely switching routes from `/events/123` back to `/events`), using `"none"` is perfect. When the page mounts again, React Query's default `refetchOnMount: true` behavior will trigger the fetch automatically, completely safely.
+
 ---
 
 ## 🏗️ Key Refactoring: `useEffect` → `useQuery`
