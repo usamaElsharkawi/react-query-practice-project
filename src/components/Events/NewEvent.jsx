@@ -8,15 +8,15 @@ import ErrorBlock from "../UI/ErrorBlock.jsx";
 export default function NewEvent() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  console.log(queryClient);
   const { mutate, isPending, isError, error } = useMutation({
     mutationFn: createNewEvent,
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["events"],
-        refetchType: "none",
       });
       navigate("/events");
-    }
+    },
   });
   function handleSubmit(formData) {
     mutate({ event: formData });
@@ -38,7 +38,12 @@ export default function NewEvent() {
           </>
         )}
       </EventForm>
-      {isError && <ErrorBlock title="Failed to create new event" message={error.info?.message || "Failed to create event"} />}
+      {isError && (
+        <ErrorBlock
+          title="Failed to create new event"
+          message={error.info?.message || "Failed to create event"}
+        />
+      )}
     </Modal>
   );
 }
