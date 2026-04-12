@@ -308,6 +308,36 @@ Adding `refetchType: "none"` tells the cache: *"Mark this as stale, but DO NOT f
 *   If you invalidate with `"none"`, and the target page was **already mounted in the background** (like a page sitting behind a Modal), it will **NOT** refetch automatically, leaving the user with stale data until they focus the window!
 *   If the target page was **unmounted** (like entirely switching routes from `/events/123` back to `/events`), using `"none"` is perfect. When the page mounts again, React Query's default `refetchOnMount: true` behavior will trigger the fetch automatically, completely safely.
 
+### 17. The 5 Logical Steps of Optimistic Updating
+
+Optimistic Updating is a UI pattern where you assume a network mutation will succeed and update the screen instantly (like the Instagram "Like" button), hiding the network latency from the user. Under the hood, it follows 5 strict logical steps:
+
+1. **The Trigger & Intercept**: User clicks save. You intercept the action using `onMutate` and **cancel** any background `GET` requests (`cancelQueries`) so they don't resolve late and overwrite your fake data.
+2. **The Backup (Snapshot)**: You take a snapshot of the current known-good data in the cache (`getQueryData`) and hold onto it inside the `context` object.
+3. **The Fake-Out**: You forcefully overwrite local memory (`setQueryData`) with the user's new input. The UI updates instantly.
+4. **The Rollback (`onError`)**: If the backend rejects the request (e.g., no internet), you retrieve your backup from Step 2 and push it back into the cache to revert the UI.
+5. **The Final Sync (`onSettled`)**: Regardless of success or failure, you invalidate the query at the very end to force TanStack Query to fetch the absolute truth from the database.
+
+### 18. `cancelQueries` Internals
+
+`await queryClient.cancelQueries({ queryKey: [...] })` acts as a laser-guided sniper. 
+It does **not** cancel all network requests. It **only** targets background `useQuery` operations fetching that exact `queryKey`. It works by finding the active `AbortController` for that query and calling `.abort()`, immediately severing the browser's TCP connection. You must `await` it to guarantee the fetch is dead before you inject your optimistic data.
+
+### 19. Cache Access: `useQuery` vs `getQueryData()`
+
+Even if you *know* data is sitting in the global cache, you should almost always use `useQuery` to access it rather than `queryClient.getQueryData()`.
+
+*   **Direct Link Protection**: If a user refreshes the page or uses a direct bookmark, the memory cache is wiped. `getQueryData()` would return `undefined` and crash your form. `useQuery` realizes the cache is empty and safely fires a fetch.
+*   **Reactivity**: `useQuery` registers an Observer. If another part of the app updates that exact data, `useQuery` triggers a re-render. `getQueryData()` is a one-time static read.
+
+### 20. The `mutate` Parameter Rule
+
+The structure of what you pass into `mutate()` must perfectly map to what your `mutationFn` expects in your HTTP util file.
+
+If your HTTP function is written as: `export async function updateEvent({ id, event })`
+Your mutate call **must** be: `mutate({ id: params.id, event: formData })`
+TanStack Query acts as a dumb middleman—it simply takes the exact payload you pass to `mutate` and hands it to the `mutationFn`.
+
 ---
 
 ## 🏗️ Key Refactoring: `useEffect` → `useQuery`
