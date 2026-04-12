@@ -23,11 +23,18 @@ export default function EditEvent() {
     error: errorUpdate,
   } = useMutation({
     mutationFn: updateEvent,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["events"],
-      });
-      navigate("../");
+    onMutate: async (data) => {
+      const newEvent = data.event;
+      await queryClient.cancelQueries({ queryKey: ["events", params.id] });
+      const previousEvent = queryClient.getQueryData(["events", params.id]);
+      queryClient.setQueryData(["events", params.id], newEvent);
+      return { previousEvent };
+    },
+    onError: (error, data, context) => {
+      queryClient.setQueryData(["events", params.id], context.previousEvent);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["events", params.id] });
     },
   });
   function handleSubmit(formData) {
@@ -75,7 +82,12 @@ export default function EditEvent() {
             </button>
           </>
         )}
-        {isErrorUpdate && <ErrorBlock title="Failed to update event" message={errorUpdate.info?.message || "Failed to update event"} />}
+        {isErrorUpdate && (
+          <ErrorBlock
+            title="Failed to update event"
+            message={errorUpdate.info?.message || "Failed to update event"}
+          />
+        )}
       </EventForm>
     );
   }
