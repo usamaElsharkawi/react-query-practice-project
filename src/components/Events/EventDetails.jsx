@@ -4,8 +4,11 @@ import { fetchEvent, deleteEvent } from "../../util/http";
 import ErrorBlock from "../UI/ErrorBlock.jsx";
 import Header from "../Header.jsx";
 import LoadingIndicator from "../UI/LoadingIndicator.jsx";
+import { useState } from "react";
+import Modal from "../UI/Modal.jsx";
 
 export default function EventDetails() {
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const params = useParams();
@@ -21,7 +24,7 @@ export default function EventDetails() {
 
   const {
     mutate,
-    isLoading: isDeleting,
+    isPending: isPendingDeletion,
     isError: isDeletingError,
     error: deletingError,
   } = useMutation({
@@ -34,6 +37,14 @@ export default function EventDetails() {
       navigate("/events");
     },
   });
+
+  function handleStartDeleting() {
+    setIsDeleting(true);
+  }
+
+  function handleCancelDeleting() {
+    setIsDeleting(false);
+  }
 
   function handleDelete() {
     mutate({ id: params.id });
@@ -68,24 +79,12 @@ export default function EventDetails() {
         <header>
           <h1>{data.title}</h1>
           <nav>
-            {isDeleting ? (
-              <p>Deleting event...</p>
-            ) : (
-              <>
-                <button onClick={handleDelete}>Delete</button>
-                <Link to="edit">Edit</Link>
-              </>
-            )}
+            <>
+              <button onClick={handleStartDeleting}>Delete</button>
+              <Link to="edit">Edit</Link>
+            </>
           </nav>
         </header>
-        <div style={{ width: "33%", margin: "auto" }}>
-          {isDeletingError && (
-            <ErrorBlock
-              title="Something went wrong"
-              message={deletingError.info?.message || "Failed to delete event"}
-            />
-          )}
-        </div>
         <div id="event-details-content">
           <img src={`http://localhost:3000/${data.image}`} alt={data.title} />
           <div id="event-details-info">
@@ -103,6 +102,29 @@ export default function EventDetails() {
   }
   return (
     <>
+      {isDeleting && (
+        <Modal onClose={handleCancelDeleting}>
+          <h2>Are you sure?</h2>
+          <p>Are you sure you want to delete this event?</p>
+          {isPendingDeletion && <p>Deleting...</p>}
+          {!isPendingDeletion && (
+            <div className="form-actions">
+              <button onClick={handleCancelDeleting} className="button-text">
+                Cancel
+              </button>
+              <button onClick={handleDelete} className="button">
+                Delete
+              </button>
+            </div>
+          )}
+          {isDeletingError && (
+            <ErrorBlock
+              title="Something went wrong"
+              message={deletingError.info?.message || "Failed to delete event"}
+            />
+          )}
+        </Modal>
+      )}
       <Outlet />
       <Header>
         <Link to="/events" className="nav-item">
