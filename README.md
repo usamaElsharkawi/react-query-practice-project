@@ -338,6 +338,25 @@ If your HTTP function is written as: `export async function updateEvent({ id, ev
 Your mutate call **must** be: `mutate({ id: params.id, event: formData })`
 TanStack Query acts as a dumb middleman—it simply takes the exact payload you pass to `mutate` and hands it to the `mutationFn`.
 
+### 21. Pure Query Functions (`queryKey` as Input)
+
+When configuring a `useQuery`, your `queryFn` can be decoupled entirely from external component state. TanStack Query automatically injects a `QueryFunctionContext` object into your fetcher.
+
+Instead of your fetcher looking "outside" for a state variable like `searchterm`, you map it natively through the `queryKey` array:
+```javascript
+// The setup
+queryKey: ["events", { searchTerm: searchterm }]
+
+// The extraction
+queryFn: ({ signal, queryKey }) => fetchEvents({ signal, ...queryKey[1] })
+```
+**Under the Hood:**
+1. `queryKey` is the identical array you provided above: `["events", { searchTerm: "..." }]`.
+2. `queryKey[1]` grabs the exact object containing your configuration at index 1.
+3. The Spread Operator (`...`) cracks open that object and pastes its properties directly inside the new argument for `fetchEvents`.
+
+**Why?** This ensures your `queryFn` is a strict **Pure Function**. It relies 100% on TanStack Query state, eliminating hidden dependencies on React component closures and preventing stale closures when components re-render.
+
 ---
 
 ## 🏗️ Key Refactoring: `useEffect` → `useQuery`
