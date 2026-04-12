@@ -8,7 +8,7 @@ export default function EventForm({ inputData, onSubmit, children }) {
   const [selectedImage, setSelectedImage] = useState(inputData?.image);
 
   const {data, isLoading, isError, error} = useQuery({
-    queryKey: ["events", "images"],
+    queryKey: ["events-images"],
     queryFn: ({signal}) => fetchSelectableImages({signal}),
   });
 
