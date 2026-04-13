@@ -31,7 +31,7 @@ The goal is not just to follow along with the course, but to **deeply understand
 ---
 
 <details>
-<summary>**🧬 View Advanced System Architecture (Sequence Diagram)**</summary>
+<summary><h2>🧬 View Advanced System Architecture (Sequence Diagram)</h2></summary>
 
 ```mermaid
 sequenceDiagram
