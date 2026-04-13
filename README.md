@@ -6,70 +6,6 @@
 
 ---
 
-<details>
-<summary>🧬 View Advanced System Architecture (Sequence Diagram)</summary>
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Router as React Router
-    participant Query as TanStack Cache
-    participant React as React Components
-    participant Net as Server (Backend)
-
-    %% PHASE 1: ROUTING & PRE-FETCHING
-    User->>Router: Clicks "View Event Details"
-    Note over Router: Halts page transition
-    Router->>Query: loader: fetchQuery(staleTime: 10s)
-
-    alt Data in Cache is < 10s old
-        Query-->>Router: Resolves instantly from memory
-    else Data is Stale or Empty
-        Query->>Net: GET /events/123 (Network Request)
-        Net-->>Query: JSON Data Returned
-        Query->>Query: Saves to Global Cache
-        Query-->>Router: Resolves Promise
-    end
-
-    %% PHASE 2: RENDERING & BACKGROUND SYNC
-    Router->>React: Transitions route & mounts EventDetails
-    React->>Query: useQuery(["events", 123])
-    Query-->>React: Delivers Cached Data instantly!
-    React-->>User: Renders UI in 0.001s (Zero Loading Spinners!)
-
-    rect rgb(0, 20, 0)
-    Note over React,Net: The "staleTime: 0" Background Safety Sync
-    React->>Query: Identifies data is "stale"
-    Query->>Net: Fires background GET request silently
-    Net-->>Query: Fresh data arrives
-    Query->>React: Observer triggers re-render (if data changed)
-    end
-
-    %% PHASE 3: OPTIMISTIC UPDATING MUTATIONS
-    User->>React: Types "New Title" & Clicks "Update"
-    React->>Query: mutate(New Title)
-
-    rect rgb(0, 0, 20)
-    Note over Query,Net: Optimistic Updating Lifecycle
-    Query->>Query: 1. cancelQueries() (Kills late background GETs)
-    Query->>Query: 2. Takes Memory Snapshot (Backup)
-    Query->>Query: 3. setQueryData(New Title) (The Fake-Out)
-    Query-->>React: Updates Cache Instantly
-    React-->>User: Screen shows "New Title" instantly!
-
-    Query->>Net: 4. PUT /events/123
-    alt Internet Drops / Server Fails
-        Net-->>Query: 500 Error
-        Query->>Query: onError: Restore Snapshot Backup
-    else Server Succeeds
-        Net-->>Query: 200 OK
-    end
-    Query->>Net: 5. onSettled: invalidateQueries() -> Enforces strict database sync
-    end
-```
-
-</details>
-
 ## 🤖 Acknowledgments & Learning Approach
 
 This study journey is powered by a unique AI-assisted learning workflow:
@@ -94,16 +30,79 @@ The goal is not just to follow along with the course, but to **deeply understand
 
 ---
 
+<details>
+<summary>**🧬 View Advanced System Architecture (Sequence Diagram)**</summary>
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Router as React Router
+    participant Query as TanStack Cache
+    participant React as React Components
+    participant Net as Server (Backend)
+    
+    %% PHASE 1: ROUTING & PRE-FETCHING
+    User->>Router: Clicks "View Event Details"
+    Note over Router: Halts page transition
+    Router->>Query: loader: fetchQuery(staleTime: 10s)
+    
+    alt Data in Cache is < 10s old
+        Query-->>Router: Resolves instantly from memory
+    else Data is Stale or Empty
+        Query->>Net: GET /events/123 (Network Request)
+        Net-->>Query: JSON Data Returned
+        Query->>Query: Saves to Global Cache
+        Query-->>Router: Resolves Promise
+    end
+    
+    %% PHASE 2: RENDERING & BACKGROUND SYNC
+    Router->>React: Transitions route & mounts EventDetails
+    React->>Query: useQuery(["events", 123])
+    Query-->>React: Delivers Cached Data instantly!
+    React-->>User: Renders UI in 0.001s (Zero Loading Spinners!)
+    
+    rect rgb(0, 20, 0)
+    Note over React,Net: The "staleTime: 0" Background Safety Sync
+    React->>Query: Identifies data is "stale"
+    Query->>Net: Fires background GET request silently
+    Net-->>Query: Fresh data arrives
+    Query->>React: Observer triggers re-render (if data changed)
+    end
+    
+    %% PHASE 3: OPTIMISTIC UPDATING MUTATIONS
+    User->>React: Types "New Title" & Clicks "Update"
+    React->>Query: mutate(New Title)
+    
+    rect rgb(0, 0, 20)
+    Note over Query,Net: Optimistic Updating Lifecycle
+    Query->>Query: 1. cancelQueries() (Kills late background GETs)
+    Query->>Query: 2. Takes Memory Snapshot (Backup)
+    Query->>Query: 3. setQueryData(New Title) (The Fake-Out)
+    Query-->>React: Updates Cache Instantly
+    React-->>User: Screen shows "New Title" instantly!
+    
+    Query->>Net: 4. PUT /events/123
+    alt Internet Drops / Server Fails
+        Net-->>Query: 500 Error
+        Query->>Query: onError: Restore Snapshot Backup
+    else Server Succeeds
+        Net-->>Query: 200 OK
+    end
+    Query->>Net: 5. onSettled: invalidateQueries() -> Enforces strict database sync
+    end
+```
+</details>
+
 ## 📚 Concepts Learned
 
 ### 1. Server State vs. Client State
 
 Two fundamentally different types of state exist in every application:
 
-| Type             | What it is                        | Who owns it  | Tool                            |
-| :--------------- | :-------------------------------- | :----------- | :------------------------------ |
-| **Client State** | Lives only in the browser         | The frontend | `useState`, `useReducer`, Redux |
-| **Server State** | Lives on a remote server/database | The backend  | TanStack Query, SWR, Apollo     |
+| Type | What it is | Who owns it | Tool |
+| :--- | :--- | :--- | :--- |
+| **Client State** | Lives only in the browser | The frontend | `useState`, `useReducer`, Redux |
+| **Server State** | Lives on a remote server/database | The backend | TanStack Query, SWR, Apollo |
 
 **Key Insight:** `useState` was never designed for managing remote data. Using it for server data means you manually carry the full responsibility of caching, synchronization, staleness, de-duplication, and error retries — all things TanStack Query does for you.
 
@@ -113,15 +112,15 @@ Two fundamentally different types of state exist in every application:
 
 The pattern of `useEffect + useState` for data fetching is not wrong — it is **incomplete**. Here are the concrete problems it creates at scale:
 
-| Problem                | `useEffect` Behavior                     | TanStack Query Solution                                |
-| :--------------------- | :--------------------------------------- | :----------------------------------------------------- |
-| **Boilerplate**        | 3 `useState` + `useEffect` per component | 1 `useQuery` call                                      |
-| **Double Fetch**       | Each component fires its own `fetch()`   | **Request Deduplication** — 1 fetch, N components      |
-| **Stale Data**         | Fetches once on mount, never updates     | **`refetchOnWindowFocus`** — auto-syncs with server    |
-| **Navigation**         | Loading spinner every time you go back   | **Cache** — instant display, silent background refetch |
-| **Post-Mutation Sync** | Manual state update or page refresh      | **`invalidateQueries`** — one line syncs everything    |
-| **Unmounted Updates**  | Memory leak / React warning              | Internal cleanup — handled automatically               |
-| **Race Conditions**    | Old responses overwrite new data         | **`AbortController`** — old requests are cancelled     |
+| Problem | `useEffect` Behavior | TanStack Query Solution |
+| :--- | :--- | :--- |
+| **Boilerplate** | 3 `useState` + `useEffect` per component | 1 `useQuery` call |
+| **Double Fetch** | Each component fires its own `fetch()` | **Request Deduplication** — 1 fetch, N components |
+| **Stale Data** | Fetches once on mount, never updates | **`refetchOnWindowFocus`** — auto-syncs with server |
+| **Navigation** | Loading spinner every time you go back | **Cache** — instant display, silent background refetch |
+| **Post-Mutation Sync** | Manual state update or page refresh | **`invalidateQueries`** — one line syncs everything |
+| **Unmounted Updates** | Memory leak / React warning | Internal cleanup — handled automatically |
+| **Race Conditions** | Old responses overwrite new data | **`AbortController`** — old requests are cancelled |
 
 ---
 
@@ -137,7 +136,6 @@ if (data) {
 ```
 
 **React Component Lifecycle on mount:**
-
 1. Component function runs → state is `undefined`.
 2. `if (data)` evaluates to `false` → `.map()` is never called.
 3. Empty section is rendered to the DOM.
@@ -167,20 +165,20 @@ JavaScript is single-threaded, but I/O is not. `fetch()` delegates to the Browse
 
 JavaScript manages async execution through two separate queues, governed by the **Event Loop**.
 
-|                   | Microtask Queue                                | Macrotask Queue                         |
-| :---------------- | :--------------------------------------------- | :-------------------------------------- |
-| **Contents**      | Promise `.then()`, `await`, `queueMicrotask()` | `setTimeout`, `setInterval`, DOM events |
-| **Priority**      | **HIGH** — runs first                          | **LOW** — runs after Microtasks drain   |
-| **Per loop tick** | **ALL** of them (full drain)                   | **ONE** task at a time                  |
-| **Mental model**  | "Finish what I started"                        | "Start a new job"                       |
+| | Microtask Queue | Macrotask Queue |
+| :--- | :--- | :--- |
+| **Contents** | Promise `.then()`, `await`, `queueMicrotask()` | `setTimeout`, `setInterval`, DOM events |
+| **Priority** | **HIGH** — runs first | **LOW** — runs after Microtasks drain |
+| **Per loop tick** | **ALL** of them (full drain) | **ONE** task at a time |
+| **Mental model** | "Finish what I started" | "Start a new job" |
 
 **Event Loop Rule:** After the Call Stack empties → drain the entire Microtask Queue → pick ONE Macrotask → repeat.
 
 ```javascript
-console.log("1"); // Call Stack → immediate
+console.log("1");           // Call Stack → immediate
 setTimeout(() => console.log("2"), 0); // Macrotask Queue
 Promise.resolve().then(() => console.log("3")); // Microtask Queue
-console.log("4"); // Call Stack → immediate
+console.log("4");           // Call Stack → immediate
 // Output: 1, 4, 3, 2
 ```
 
@@ -225,26 +223,26 @@ SPEED  ←————————————→  ACCURACY (Freshness)
 
 **Invalidation Strategies:**
 
-| Strategy                   | How                                    | Trade-off                             |
-| :------------------------- | :------------------------------------- | :------------------------------------ |
-| **TTL Expiry**             | Auto-expire after N seconds            | Simple, but stale for up to N seconds |
-| **Event-Based**            | Explicitly clear cache on write        | Accurate, but complex tracking        |
-| **Stale-While-Revalidate** | Show old data, fetch new in background | Best UX, slight accuracy delay        |
-| **Write-Through**          | Update cache and DB simultaneously     | Always consistent, complex writes     |
+| Strategy | How | Trade-off |
+| :--- | :--- | :--- |
+| **TTL Expiry** | Auto-expire after N seconds | Simple, but stale for up to N seconds |
+| **Event-Based** | Explicitly clear cache on write | Accurate, but complex tracking |
+| **Stale-While-Revalidate** | Show old data, fetch new in background | Best UX, slight accuracy delay |
+| **Write-Through** | Update cache and DB simultaneously | Always consistent, complex writes |
 
 > TanStack Query uses **Event-Based** (`invalidateQueries`) + **Stale-While-Revalidate** (`staleTime`).
 
 **The Caching Layers (from hardware to UI):**
 
-| Layer                | Owner                            | Tool                    |
-| :------------------- | :------------------------------- | :---------------------- |
-| CPU Cache (L1/L2/L3) | Hardware                         | Automatic               |
-| RAM / OS Cache       | OS                               | Automatic               |
-| Database Query Cache | Backend / DBA                    | DB config               |
-| Server-Side Cache    | Backend Engineer                 | Redis / Memcached       |
-| CDN Cache            | DevOps / Platform                | Cloudflare, Fastly      |
-| HTTP Cache           | Backend sets / Frontend respects | ETag, `Cache-Control`   |
-| Application Cache    | **Frontend Engineer**            | **TanStack Query, SWR** |
+| Layer | Owner | Tool |
+| :--- | :--- | :--- |
+| CPU Cache (L1/L2/L3) | Hardware | Automatic |
+| RAM / OS Cache | OS | Automatic |
+| Database Query Cache | Backend / DBA | DB config |
+| Server-Side Cache | Backend Engineer | Redis / Memcached |
+| CDN Cache | DevOps / Platform | Cloudflare, Fastly |
+| HTTP Cache | Backend sets / Frontend respects | ETag, `Cache-Control` |
+| Application Cache | **Frontend Engineer** | **TanStack Query, SWR** |
 
 ---
 
@@ -253,15 +251,12 @@ SPEED  ←————————————→  ACCURACY (Freshness)
 TanStack Query is built on 5 internal pillars:
 
 #### Pillar 1: `QueryClient` — The Manager
-
 A JavaScript **class instance** created once (singleton pattern) and shared via React's Context API through `QueryClientProvider`. Holds the global `QueryCache` and configuration defaults.
 
 #### Pillar 2: `QueryCache` — The Database
-
 A JavaScript **`Map`** where keys are deterministic hashes of `queryKey` arrays and values are `Query` objects.
 
 #### Pillar 3: `Query` — The State Machine
-
 Each cache entry is a `Query` object — a state machine with two independent dimensions:
 
 ```
@@ -272,13 +267,10 @@ FETCH STATUS (network):       idle → fetching → idle | paused
 This is why React Query can show **stale data while fetching new data**: `status: 'success'` (old data available) + `fetchStatus: 'fetching'` (new data being loaded).
 
 #### Pillar 4: `QueryObserver` — The Spy (Observer Pattern)
-
 Every `useQuery` call creates a `QueryObserver` that **subscribes** to a `Query` object. When the `Query`'s state changes, all observers are notified and their components re-render. Multiple components subscribing to the same `queryKey` share **one** `Query` object → one network request → all components update simultaneously.
 
 #### Pillar 5: `useQuery` — The Bridge to React
-
 The hook that connects the React component world to TanStack Query's internal world. On mount, it:
-
 1. Computes the `queryKey` hash.
 2. Looks up or creates the `Query` in `QueryCache`.
 3. Creates a `QueryObserver` that subscribes to that `Query`.
@@ -286,7 +278,6 @@ The hook that connects the React component world to TanStack Query's internal wo
 5. Returns the derived state object: `{ data, isLoading, isError, error, isFetching }`.
 
 **Design Patterns used internally:**
-
 - **Observer Pattern** → `Query` notifies `QueryObserver` instances.
 - **State Machine** → `Query.state.status` / `fetchStatus`.
 - **Singleton** → One `QueryClient` shared via Context.
@@ -296,7 +287,7 @@ The hook that connects the React component world to TanStack Query's internal wo
 TanStack Query relies heavily on the **Dependency Inversion Principle (the 'D' in SOLID)**.
 It asks you for one simple contract: **"Give me a function that returns a Promise."**
 
-It doesn't care if you use `fetch`, `axios`, `GraphQL`, or a local `IndexedDB`. By programming to this interface (a Promise), TanStack Query decouples its complex caching/state machine logic from your low-level transport/network logic.
+It doesn't care if you use `fetch`, `axios`, `GraphQL`, or a local `IndexedDB`. By programming to this interface (a Promise), TanStack Query decouples its complex caching/state machine logic from your low-level transport/network logic. 
 
 **JS Internals:** Any function declared with the `async` keyword automatically wraps its return value in a `Promise`. That's why your `async function fetchEvents()` satisfies the contract perfectly.
 
@@ -308,7 +299,6 @@ TanStack Query silently passes an object, the `QueryFunctionContext`, to every `
 It contains: `{ queryKey, signal, meta }` and more.
 
 The most important property here is `signal` (an `AbortSignal` instance):
-
 1. **The Wiring**: You pass this `signal` directly into the native `fetch` API: `fetch(url, { signal })`.
 2. **The Execution**: If a component unmounts quickly, or if a user types rapidly triggering a **Race Condition**, React Query internally triggers `.abort()` on its controller.
 3. **The Result**: The browser's native networking engine sees the red signal and **violently terminates the TCP connection** immediately, saving user bandwidth. The `fetch` promise rejects with an `AbortError`, which React Query catches and silently swallows.
@@ -319,10 +309,10 @@ The most important property here is `signal` (an `AbortSignal` instance):
 
 These two configuration properties control completely different aspects of data lifecycle:
 
-| Property        | Default  | Question it Answers                   | Result                                                                                          |
-| :-------------- | :------- | :------------------------------------ | :---------------------------------------------------------------------------------------------- |
-| **`staleTime`** | `0`      | "Is the data fresh enough to trust?"  | Controls if a background **refetch** triggers when components mount or window focuses.          |
-| **`gcTime`**    | `5 mins` | "Should we keep this data in memory?" | Controls when an unused Query is **completely deleted** from the cache to prevent memory leaks. |
+| Property | Default | Question it Answers | Result |
+| :--- | :--- | :--- | :--- |
+| **`staleTime`** | `0` | "Is the data fresh enough to trust?" | Controls if a background **refetch** triggers when components mount or window focuses. |
+| **`gcTime`** | `5 mins`| "Should we keep this data in memory?" | Controls when an unused Query is **completely deleted** from the cache to prevent memory leaks. |
 
 **Important Note:** `staleTime` does **NOT** decide if data is shown to the user. Stale data is still shown instantly from the cache, providing a seamless UX, while the verification fetch happens silently in the background (Stale-While-Revalidate).
 
@@ -332,13 +322,12 @@ These two configuration properties control completely different aspects of data 
 
 React Query v5 clearly separated these states to align with literal English definitions:
 
-- **`isPending`**: "I have no data yet." (Whether I'm fetching it right now, or the query is paused/disabled).
-- **`isLoading`**: "I have no data yet **AND** a network request is happening _right now_ to get it." (`isPending && isFetching`).
+*   **`isPending`**: "I have no data yet." (Whether I'm fetching it right now, or the query is paused/disabled).
+*   **`isLoading`**: "I have no data yet **AND** a network request is happening *right now* to get it." (`isPending && isFetching`).
 
 When a query is explicitly paused using the `enabled: false` property (e.g., waiting for user search input):
-
-- `isPending = true`
-- `isLoading = false`
+*   `isPending = true`
+*   `isLoading = false`
 
 You should use `isLoading` to trigger your initial loading spinners to avoid infinite spinners when a query is intentionally paused.
 
@@ -346,8 +335,8 @@ You should use `isLoading` to trigger your initial loading spinners to avoid inf
 
 The two main hooks in TanStack Query serve fundamentally different purposes:
 
-- **`useQuery` (Declarative):** For **READING** data (`GET`). You just declare it, and it fires automatically when the component mounts. It handles caching, deduplication, and background sync.
-- **`useMutation` (Imperative):** For **CHANGING** data (`POST`, `PUT`, `DELETE`). It does _nothing_ on mount. It gives you a `mutate` function that you trigger manually (e.g., when a user clicks a button). It does not cache the result.
+*   **`useQuery` (Declarative):** For **READING** data (`GET`). You just declare it, and it fires automatically when the component mounts. It handles caching, deduplication, and background sync.
+*   **`useMutation` (Imperative):** For **CHANGING** data (`POST`, `PUT`, `DELETE`). It does *nothing* on mount. It gives you a `mutate` function that you trigger manually (e.g., when a user clicks a button). It does not cache the result.
 
 ---
 
@@ -376,12 +365,11 @@ After a successful mutation, where should you redirect the user? Apply this ment
 ### 16. The `refetchType: "none"` Gotcha (React Lifecycle)
 
 When you invalidate a query (e.g., after creating an event), TanStack Query immediately fires a background refetch. If you are navigating away immediately, this can cause an unnecessary double-fetch.
-Adding `refetchType: "none"` tells the cache: _"Mark this as stale, but DO NOT fetch it right now."_
+Adding `refetchType: "none"` tells the cache: *"Mark this as stale, but DO NOT fetch it right now."*
 
 **The Senior Lifecycle Gotcha:**
-
-- If you invalidate with `"none"`, and the target page was **already mounted in the background** (like a page sitting behind a Modal), it will **NOT** refetch automatically, leaving the user with stale data until they focus the window!
-- If the target page was **unmounted** (like entirely switching routes from `/events/123` back to `/events`), using `"none"` is perfect. When the page mounts again, React Query's default `refetchOnMount: true` behavior will trigger the fetch automatically, completely safely.
+*   If you invalidate with `"none"`, and the target page was **already mounted in the background** (like a page sitting behind a Modal), it will **NOT** refetch automatically, leaving the user with stale data until they focus the window!
+*   If the target page was **unmounted** (like entirely switching routes from `/events/123` back to `/events`), using `"none"` is perfect. When the page mounts again, React Query's default `refetchOnMount: true` behavior will trigger the fetch automatically, completely safely.
 
 ### 17. The 5 Logical Steps of Optimistic Updating
 
@@ -395,15 +383,15 @@ Optimistic Updating is a UI pattern where you assume a network mutation will suc
 
 ### 18. `cancelQueries` Internals
 
-`await queryClient.cancelQueries({ queryKey: [...] })` acts as a laser-guided sniper.
+`await queryClient.cancelQueries({ queryKey: [...] })` acts as a laser-guided sniper. 
 It does **not** cancel all network requests. It **only** targets background `useQuery` operations fetching that exact `queryKey`. It works by finding the active `AbortController` for that query and calling `.abort()`, immediately severing the browser's TCP connection. You must `await` it to guarantee the fetch is dead before you inject your optimistic data.
 
 ### 19. Cache Access: `useQuery` vs `getQueryData()`
 
-Even if you _know_ data is sitting in the global cache, you should almost always use `useQuery` to access it rather than `queryClient.getQueryData()`.
+Even if you *know* data is sitting in the global cache, you should almost always use `useQuery` to access it rather than `queryClient.getQueryData()`.
 
-- **Direct Link Protection**: If a user refreshes the page or uses a direct bookmark, the memory cache is wiped. `getQueryData()` would return `undefined` and crash your form. `useQuery` realizes the cache is empty and safely fires a fetch.
-- **Reactivity**: `useQuery` registers an Observer. If another part of the app updates that exact data, `useQuery` triggers a re-render. `getQueryData()` is a one-time static read.
+*   **Direct Link Protection**: If a user refreshes the page or uses a direct bookmark, the memory cache is wiped. `getQueryData()` would return `undefined` and crash your form. `useQuery` realizes the cache is empty and safely fires a fetch.
+*   **Reactivity**: `useQuery` registers an Observer. If another part of the app updates that exact data, `useQuery` triggers a re-render. `getQueryData()` is a one-time static read.
 
 ### 20. The `mutate` Parameter Rule
 
@@ -418,17 +406,14 @@ TanStack Query acts as a dumb middleman—it simply takes the exact payload you 
 When configuring a `useQuery`, your `queryFn` can be decoupled entirely from external component state. TanStack Query automatically injects a `QueryFunctionContext` object into your fetcher.
 
 Instead of your fetcher looking "outside" for a state variable like `searchterm`, you map it natively through the `queryKey` array:
-
 ```javascript
 // The setup
-queryKey: ["events", { searchTerm: searchterm }];
+queryKey: ["events", { searchTerm: searchterm }]
 
 // The extraction
-queryFn: ({ signal, queryKey }) => fetchEvents({ signal, ...queryKey[1] });
+queryFn: ({ signal, queryKey }) => fetchEvents({ signal, ...queryKey[1] })
 ```
-
 **Under the Hood:**
-
 1. `queryKey` is the identical array you provided above: `["events", { searchTerm: "..." }]`.
 2. `queryKey[1]` grabs the exact object containing your configuration at index 1.
 3. The Spread Operator (`...`) cracks open that object and pastes its properties directly inside the new argument for `fetchEvents`.
@@ -440,8 +425,8 @@ queryFn: ({ signal, queryKey }) => fetchEvents({ signal, ...queryKey[1] });
 You can achieve flawless UX (zero layout shifts or loading spinners) by merging React Router navigation guards with the TanStack Query cache.
 
 1. **The Global Client**: You must instantiate `new QueryClient()` in a standard JS file (like `http.js`) and export it, so it can be accessed outside of React's component tree.
-2. **The Loader Fetch (`fetchQuery`)**: React Router `loaders` are standard JS functions; they cannot use hooks. You use `queryClient.fetchQuery(...)` which returns a Promise. React Router naturally `awaits` this promise, fetching the data in the background and populating the cache _before_ transitioning the page.
-3. **The UX Magic**: Once React Router transitions the page, your component mounts and its `useQuery` hook fires. Because the data is already securely in the cache from the `loader`, it renders instantly.
+2. **The Loader Fetch (`fetchQuery`)**: React Router `loaders` are standard JS functions; they cannot use hooks. You use `queryClient.fetchQuery(...)` which returns a Promise. React Router naturally `awaits` this promise, fetching the data in the background and populating the cache *before* transitioning the page.
+3. **The UX Magic**: Once React Router transitions the page, your component mounts and its `useQuery` hook fires. Because the data is already securely in the cache from the `loader`, it renders instantly. 
 4. **Mutations vs Actions**: While React Router has `action` functions, it is an industry best practice to stick to TanStack Query's `useMutation`. It provides superior scalpel-like control over the cache (via `invalidateQueries` and Optimistic Updating) compared to React Router's blunt-force page-level revalidation.
 
 ### 23. The 4 Automatic Refetch Triggers
@@ -455,24 +440,22 @@ TanStack Query acts as an aggressive watchdog to provide a "Zero-Effort Realtime
 
 ### 24. The `fetchQuery` Stale Time Trap
 
-When utilizing the **Render-as-You-Fetch** pattern, you might notice your app feeling sluggish or "frozen" when clicking a link. This happens because TanStack Query's default `staleTime` is `0`.
+When utilizing the **Render-as-You-Fetch** pattern, you might notice your app feeling sluggish or "frozen" when clicking a link. This happens because TanStack Query's default `staleTime` is `0`. 
 
 **The Problem:**
 Inside your React Router loader, `queryClient.fetchQuery(...)` looks at the cache. Even if the data is there, because `staleTime=0`, it assumes the data is dead. It refuses to resolve the Promise until it fetches fresh data from the backend. Since the Promise doesn't resolve, React Router blocks the page transition. The UI freezes.
 
 **The Solution:**
 You must pass a manual `staleTime` directly into the loader's `fetchQuery`:
-
 ```javascript
 export function loader({ params }) {
   return queryClient.fetchQuery({
     queryKey: ["events", params.id],
     queryFn: ({ signal }) => fetchEvent({ id: params.id, signal }),
-    staleTime: 10000,
+    staleTime: 10000, 
   });
 }
 ```
-
 If the cached data is less than 10 seconds old, `fetchQuery` resolves **instantly**. React Router transitions the page instantly. Then, once the target component mounts, its internal `useQuery` hook (which still behaves under default rules) will silently fire a background fetch to ensure the data is perfectly synced, resulting in the ultimate user experience.
 
 ---
@@ -482,7 +465,6 @@ If the cached data is less than 10 seconds old, `fetchQuery` resolves **instantl
 The core transformation in `NewEventsSection.jsx`:
 
 **Before (39 lines, 3 states, manual lifecycle):**
-
 ```javascript
 const [data, setData] = useState();
 const [error, setError] = useState();
@@ -494,13 +476,12 @@ useEffect(() => {
 ```
 
 **After (4 lines, zero manual state):**
-
 ```javascript
-import { useQuery } from "@tanstack/react-query";
-import { fetchEvents } from "../../util/http.js";
+import { useQuery } from '@tanstack/react-query';
+import { fetchEvents } from '../../util/http.js';
 
 const { data, isLoading, error } = useQuery({
-  queryKey: ["events"],
+  queryKey: ['events'],
   queryFn: fetchEvents,
 });
 ```
@@ -513,7 +494,7 @@ The `fetchEvents` function was also extracted to `src/util/http.js` as a **reusa
 
 ```javascript
 // App.jsx
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
 
