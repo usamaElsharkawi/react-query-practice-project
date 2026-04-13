@@ -140,5 +140,6 @@ export function loader({ params }) {
   return queryClient.fetchQuery({
     queryKey: ["events", params.id],
     queryFn: ({ signal }) => fetchEvent({ id: params.id, signal }),
+    staleTime: 10000,
   });
 }
