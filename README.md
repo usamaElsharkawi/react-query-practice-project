@@ -375,6 +375,26 @@ TanStack Query acts as an aggressive watchdog to provide a "Zero-Effort Realtime
 3. **`refetchOnReconnect`**: The browser loses internet connection and regains it.
 4. **Manual Invalidation**: You explicitly run `queryClient.invalidateQueries(...)` after a mutation.
 
+### 24. The `fetchQuery` Stale Time Trap
+
+When utilizing the **Render-as-You-Fetch** pattern, you might notice your app feeling sluggish or "frozen" when clicking a link. This happens because TanStack Query's default `staleTime` is `0`. 
+
+**The Problem:**
+Inside your React Router loader, `queryClient.fetchQuery(...)` looks at the cache. Even if the data is there, because `staleTime=0`, it assumes the data is dead. It refuses to resolve the Promise until it fetches fresh data from the backend. Since the Promise doesn't resolve, React Router blocks the page transition. The UI freezes.
+
+**The Solution:**
+You must pass a manual `staleTime` directly into the loader's `fetchQuery`:
+```javascript
+export function loader({ params }) {
+  return queryClient.fetchQuery({
+    queryKey: ["events", params.id],
+    queryFn: ({ signal }) => fetchEvent({ id: params.id, signal }),
+    staleTime: 10000, 
+  });
+}
+```
+If the cached data is less than 10 seconds old, `fetchQuery` resolves **instantly**. React Router transitions the page instantly. Then, once the target component mounts, its internal `useQuery` hook (which still behaves under default rules) will silently fire a background fetch to ensure the data is perfectly synced, resulting in the ultimate user experience.
+
 ---
 
 ## 🏗️ Key Refactoring: `useEffect` → `useQuery`
