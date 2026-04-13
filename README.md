@@ -357,6 +357,24 @@ queryFn: ({ signal, queryKey }) => fetchEvents({ signal, ...queryKey[1] })
 
 **Why?** This ensures your `queryFn` is a strict **Pure Function**. It relies 100% on TanStack Query state, eliminating hidden dependencies on React component closures and preventing stale closures when components re-render.
 
+### 22. React Router Integration (Render-as-You-Fetch)
+
+You can achieve flawless UX (zero layout shifts or loading spinners) by merging React Router navigation guards with the TanStack Query cache.
+
+1. **The Global Client**: You must instantiate `new QueryClient()` in a standard JS file (like `http.js`) and export it, so it can be accessed outside of React's component tree.
+2. **The Loader Fetch (`fetchQuery`)**: React Router `loaders` are standard JS functions; they cannot use hooks. You use `queryClient.fetchQuery(...)` which returns a Promise. React Router naturally `awaits` this promise, fetching the data in the background and populating the cache *before* transitioning the page.
+3. **The UX Magic**: Once React Router transitions the page, your component mounts and its `useQuery` hook fires. Because the data is already securely in the cache from the `loader`, it renders instantly. 
+4. **Mutations vs Actions**: While React Router has `action` functions, it is an industry best practice to stick to TanStack Query's `useMutation`. It provides superior scalpel-like control over the cache (via `invalidateQueries` and Optimistic Updating) compared to React Router's blunt-force page-level revalidation.
+
+### 23. The 4 Automatic Refetch Triggers
+
+TanStack Query acts as an aggressive watchdog to provide a "Zero-Effort Realtime UI", mimicking native iOS/Android apps. It automatically triggers background fetches (if data is marked `stale`) based on 4 events:
+
+1. **`refetchOnMount`**: A new component subscribes to the data.
+2. **`refetchOnWindowFocus`**: The user leaves the browser tab/app and returns.
+3. **`refetchOnReconnect`**: The browser loses internet connection and regains it.
+4. **Manual Invalidation**: You explicitly run `queryClient.invalidateQueries(...)` after a mutation.
+
 ---
 
 ## 🏗️ Key Refactoring: `useEffect` → `useQuery`
