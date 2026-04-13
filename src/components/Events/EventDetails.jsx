@@ -1,6 +1,6 @@
 import { Link, Outlet, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchEvent, deleteEvent } from "../../util/http";
+import { fetchEvent, deleteEvent, queryClient } from "../../util/http";
 import ErrorBlock from "../UI/ErrorBlock.jsx";
 import Header from "../Header.jsx";
 import LoadingIndicator from "../UI/LoadingIndicator.jsx";
@@ -134,4 +134,11 @@ export default function EventDetails() {
       {content}
     </>
   );
+}
+
+export function loader({ params }) {
+  return queryClient.fetchQuery({
+    queryKey: ["events", params.id],
+    queryFn: ({ signal }) => fetchEvent({ id: params.id, signal }),
+  });
 }
